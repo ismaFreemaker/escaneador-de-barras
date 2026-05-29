@@ -2,6 +2,33 @@ import requests
 import json
 
 # =========================================
+# LIMPIAR TEXTO
+# =========================================
+
+def limpiar_texto(texto):
+
+    if not texto:
+        return ""
+
+    texto = str(texto).strip()
+
+    return texto
+
+# =========================================
+# AGREGAR SI EXISTE
+# =========================================
+
+def agregar_nombre(lista, valor):
+
+    valor = limpiar_texto(valor)
+
+    if valor:
+
+        if valor not in lista:
+
+            lista.append(valor)
+
+# =========================================
 # BUSCAR PRODUCTO
 # =========================================
 
@@ -11,70 +38,143 @@ def buscar_producto(codigo_barras):
 
     try:
 
-        response = requests.get(url)
+        response = requests.get(url, timeout=10)
 
-        print("STATUS CODE:")
+        print("\n==============================")
+        print("BUSCANDO PRODUCTO")
+        print("==============================")
+
+        print("CÓDIGO:")
+        print(codigo_barras)
+
+        print("\nSTATUS:")
         print(response.status_code)
 
         data = response.json()
 
-        print("JSON COMPLETO:")
-        print(json.dumps(data, indent=2))
-
         # =========================================
-        # SI EXISTE
+        # NO EXISTE
         # =========================================
 
-        if data.get("status") == 1:
+        if data.get("status") != 1:
 
-            producto = data.get("product", {})
-
-            nombres_posibles = []
-
-            posibles_campos = [
-
-                producto.get("product_name"),
-                producto.get("generic_name"),
-                producto.get("product_name_es"),
-                producto.get("abbreviated_product_name")
-
-            ]
-
-            for nombre in posibles_campos:
-
-                if nombre:
-
-                    nombre = str(nombre).strip()
-
-                    if nombre not in nombres_posibles:
-
-                        nombres_posibles.append(nombre)
-
-            return {
-
-                "encontrado": True,
-
-                "nombres": nombres_posibles,
-
-                "marca": producto.get("brands", ""),
-
-                "categoria": producto.get("categories", "")
-
-            }
-
-        else:
-
-            print("NO ENCONTRADO EN API")
+            print("\nNO ENCONTRADO EN OPENFOODFACTS")
 
             return {
                 "encontrado": False
             }
 
-    except Exception as e:
+        # =========================================
+        # PRODUCTO
+        # =========================================
 
-        print("ERROR REAL:")
-        print(e)
+        producto = data.get("product", {})
+
+        nombres = []
+
+        # =========================================
+        # CAMPOS IMPORTANTES
+        # =========================================
+
+        agregar_nombre(
+            nombres,
+            producto.get("product_name")
+        )
+
+        agregar_nombre(
+            nombres,
+            producto.get("product_name_es")
+        )
+
+        agregar_nombre(
+            nombres,
+            producto.get("generic_name")
+        )
+
+        agregar_nombre(
+            nombres,
+            producto.get("generic_name_es")
+        )
+
+        agregar_nombre(
+            nombres,
+            producto.get("abbreviated_product_name")
+        )
+
+        # =========================================
+        # FALLBACK
+        # =========================================
+
+        if not nombres:
+
+            agregar_nombre(
+                nombres,
+                producto.get("brands")
+            )
+
+        # =========================================
+        # SI TODAVÍA NO HAY
+        # =========================================
+
+        if not nombres:
+
+            nombres.append("Producto sin nombre")
+
+        # =========================================
+        # MARCA
+        # =========================================
+
+        marca = limpiar_texto(
+            producto.get("brands")
+        )
+
+        # =========================================
+        # CATEGORÍA
+        # =========================================
+
+        categoria = limpiar_texto(
+            producto.get("categories")
+        )
+
+        # =========================================
+        # DEBUG
+        # =========================================
+
+        print("\nNOMBRES ENCONTRADOS:")
+
+        for n in nombres:
+
+            print("-", n)
+
+        print("\nMARCA:")
+        print(marca)
+
+        print("\nCATEGORÍA:")
+        print(categoria)
+
+        # =========================================
+        # RESPUESTA
+        # =========================================
 
         return {
+
+            "encontrado": True,
+
+            "nombres": nombres,
+
+            "marca": marca,
+
+            "categoria": categoria
+
+        }
+
+    except Exception as e:
+
+        print("\nERROR REAL:")
+        print(str(e))
+
+        return {
+
             "encontrado": False
+
         }
