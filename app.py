@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import time
 
 from api_productos import buscar_producto
 
@@ -20,35 +19,23 @@ st.set_page_config(
 )
 
 # =========================================
-# CREAR TABLA
+# DB
 # =========================================
 
 crear_tabla()
 
 # =========================================
-# SESSION STATE
-# =========================================
-
-if "ultimo_codigo" not in st.session_state:
-
-    st.session_state.ultimo_codigo = ""
-
-if "resultado_api" not in st.session_state:
-
-    st.session_state.resultado_api = None
-
-# =========================================
-# TÍTULO
+# TITLE
 # =========================================
 
 st.title("Catálogo Inteligente")
 
 st.write(
-    "Escaneá un producto usando la cámara del celular."
+    "Escaneá productos usando la cámara del celular."
 )
 
 # =========================================
-# SCANNER HTML5
+# SCANNER
 # =========================================
 
 scanner_html = """
@@ -70,7 +57,7 @@ function beep() {
     audio.play();
 }
 
-function onScanSuccess(decodedText, decodedResult) {
+function onScanSuccess(decodedText) {
 
     if(decodedText === ultimoCodigo){
         return;
@@ -82,9 +69,13 @@ function onScanSuccess(decodedText, decodedResult) {
 
     const streamlitDoc = window.parent.document;
 
-    const input = streamlitDoc.querySelector('input[type="text"]');
+    const input = streamlitDoc.querySelector(
+        'input[type="text"]'
+    );
 
     if(input){
+
+        input.focus();
 
         input.value = decodedText;
 
@@ -93,16 +84,12 @@ function onScanSuccess(decodedText, decodedResult) {
         );
 
         input.dispatchEvent(
-            new KeyboardEvent('keydown', {
-                bubbles: true,
-                cancelable: true,
-                keyCode: 13
-            })
+            new Event('change', { bubbles: true })
         );
     }
 }
 
-let html5QrcodeScanner = new Html5QrcodeScanner(
+const scanner = new Html5QrcodeScanner(
     "reader",
     {
         fps: 10,
@@ -110,7 +97,7 @@ let html5QrcodeScanner = new Html5QrcodeScanner(
     }
 );
 
-html5QrcodeScanner.render(onScanSuccess);
+scanner.render(onScanSuccess);
 
 </script>
 
@@ -122,56 +109,61 @@ st.components.v1.html(
 )
 
 # =========================================
-# INPUT CÓDIGO
+# INPUT
 # =========================================
 
 codigo_barras = st.text_input(
     "Código de barras"
-).strip()
-st.write("Código actual:", codigo_barras)
-if st.button("TEST API"):
+)
 
-    resultado = buscar_producto(codigo_barras)
-    
-    st.write(resultado)
-# =========================================
-# BÚSQUEDA AUTOMÁTICA
-# =========================================
-
-if (
+codigo_barras = (
     codigo_barras
-    and codigo_barras != st.session_state.ultimo_codigo
-):
-
-    st.session_state.ultimo_codigo = codigo_barras
-
-    with st.spinner("Buscando producto..."):
-
-        resultado = buscar_producto(codigo_barras)
-
-        time.sleep(0.5)
-
-        st.session_state.resultado_api = resultado
+    .replace("\n", "")
+    .replace("\r", "")
+    .replace(" ", "")
+    .strip()
+)
 
 # =========================================
-# MOSTRAR RESULTADO
+# DEBUG
 # =========================================
 
-resultado = st.session_state.resultado_api
+st.write("Código:", repr(codigo_barras))
+
+# =========================================
+# BUSCAR AUTOMÁTICAMENTE
+# =========================================
+
+resultado = None
+
+if codigo_barras:
+
+    resultado = buscar_producto(
+        codigo_barras
+    )
+
+# =========================================
+# RESULTADO
+# =========================================
 
 if resultado:
 
-    if resultado["encontrado"]:
+    st.write(resultado)
 
-        st.success(
-            f"Código detectado: {codigo_barras}"
+    if resultado.get("encontrado"):
+
+        st.success("Producto encontrado")
+
+        nombres = resultado.get(
+            "nombres",
+            []
         )
-
-        nombres = resultado["nombres"]
 
         if not nombres:
 
-            nombres = ["Producto sin nombre"]
+            nombres = [
+                "Producto sin nombre"
+            ]
 
         nombre_seleccionado = st.selectbox(
 
@@ -183,7 +175,7 @@ if resultado:
 
         nombre_editado = st.text_input(
 
-            "O editalo manualmente",
+            "Editar nombre",
 
             value=nombre_seleccionado
 
@@ -193,7 +185,10 @@ if resultado:
 
             "Marca",
 
-            value=resultado["marca"]
+            value=resultado.get(
+                "marca",
+                ""
+            )
 
         )
 
@@ -201,7 +196,10 @@ if resultado:
 
             "Categoría",
 
-            value=resultado["categoria"]
+            value=resultado.get(
+                "categoria",
+                ""
+            )
 
         )
 
@@ -220,30 +218,19 @@ if resultado:
 
             )
 
-            st.success("Producto guardado")
-
-            # =========================================
-            # LIMPIAR
-            # =========================================
-
-            st.session_state.resultado_api = None
-            st.session_state.ultimo_codigo = ""
-
-            st.rerun()
-
-    else:
-
-        st.error(
-            "No se encontró el producto"
-        )
+            st.success(
+                "Producto guardado"
+            )
 
 # =========================================
-# MOSTRAR CATÁLOGO
+# TABLA
 # =========================================
 
 st.divider()
 
-st.subheader("Productos guardados")
+st.subheader(
+    "Productos guardados"
+)
 
 productos = obtener_productos()
 
