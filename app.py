@@ -128,7 +128,12 @@ st.components.v1.html(
 codigo_barras = st.text_input(
     "Código de barras"
 ).strip()
+st.write("Código actual:", codigo_barras)
+if st.button("TEST API"):
 
+    resultado = buscar_producto(codigo_barras)
+
+    st.write(resultado)
 # =========================================
 # BÚSQUEDA AUTOMÁTICA
 # =========================================
