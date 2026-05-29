@@ -1,5 +1,4 @@
 import requests
-import json
 
 # =========================================
 # LIMPIAR TEXTO
@@ -10,12 +9,10 @@ def limpiar_texto(texto):
     if not texto:
         return ""
 
-    texto = str(texto).strip()
-
-    return texto
+    return str(texto).strip()
 
 # =========================================
-# AGREGAR SI EXISTE
+# AGREGAR NOMBRE
 # =========================================
 
 def agregar_nombre(lista, valor):
@@ -34,34 +31,49 @@ def agregar_nombre(lista, valor):
 
 def buscar_producto(codigo_barras):
 
-    url = f"https://world.openfoodfacts.org/api/v0/product/{codigo_barras}.json"
+    url = (
+        f"https://world.openfoodfacts.org/api/v0/product/"
+        f"{codigo_barras}.json"
+    )
+
+    headers = {
+
+        "User-Agent": "CatalogoInteligente/1.0"
+
+    }
 
     try:
 
-        response = requests.get(url, timeout=10)
+        response = requests.get(
 
-        print("\n==============================")
-        print("BUSCANDO PRODUCTO")
-        print("==============================")
+            url,
+            headers=headers,
+            timeout=10
 
-        print("CÓDIGO:")
-        print(codigo_barras)
+        )
 
-        print("\nSTATUS:")
+        print("\n===================")
+        print("STATUS:")
         print(response.status_code)
+
+        # =========================================
+        # JSON
+        # =========================================
 
         data = response.json()
 
         # =========================================
-        # NO EXISTE
+        # EXISTE PRODUCTO
         # =========================================
 
         if data.get("status") != 1:
 
-            print("\nNO ENCONTRADO EN OPENFOODFACTS")
+            print("PRODUCTO NO ENCONTRADO")
 
             return {
+
                 "encontrado": False
+
             }
 
         # =========================================
@@ -73,7 +85,7 @@ def buscar_producto(codigo_barras):
         nombres = []
 
         # =========================================
-        # CAMPOS IMPORTANTES
+        # NOMBRES POSIBLES
         # =========================================
 
         agregar_nombre(
@@ -113,19 +125,23 @@ def buscar_producto(codigo_barras):
             )
 
         # =========================================
-        # SI TODAVÍA NO HAY
+        # SI NO HAY NOMBRES
         # =========================================
 
         if not nombres:
 
-            nombres.append("Producto sin nombre")
+            nombres.append(
+                "Producto sin nombre"
+            )
 
         # =========================================
         # MARCA
         # =========================================
 
         marca = limpiar_texto(
+
             producto.get("brands")
+
         )
 
         # =========================================
@@ -133,27 +149,26 @@ def buscar_producto(codigo_barras):
         # =========================================
 
         categoria = limpiar_texto(
+
             producto.get("categories")
+
         )
 
         # =========================================
         # DEBUG
         # =========================================
 
-        print("\nNOMBRES ENCONTRADOS:")
+        print("NOMBRES:")
+        print(nombres)
 
-        for n in nombres:
-
-            print("-", n)
-
-        print("\nMARCA:")
+        print("MARCA:")
         print(marca)
 
-        print("\nCATEGORÍA:")
+        print("CATEGORIA:")
         print(categoria)
 
         # =========================================
-        # RESPUESTA
+        # RESPUESTA LIMPIA
         # =========================================
 
         return {
@@ -170,7 +185,7 @@ def buscar_producto(codigo_barras):
 
     except Exception as e:
 
-        print("\nERROR REAL:")
+        print("ERROR:")
         print(str(e))
 
         return {
