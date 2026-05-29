@@ -131,7 +131,7 @@ codigo_barras = st.text_input(
 st.write("Código actual:", codigo_barras)
 if st.button("TEST API"):
 
-    resultado = buscar_producto(codigo_barras)
+    resultado = buscar_producto(7798113301024)
 
     st.write(resultado)
 # =========================================
