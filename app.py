@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import time
 
 from api_productos import buscar_producto
 
@@ -28,9 +29,13 @@ crear_tabla()
 # SESSION STATE
 # =========================================
 
-if "codigo_barras" not in st.session_state:
+if "ultimo_codigo" not in st.session_state:
 
-    st.session_state.codigo_barras = ""
+    st.session_state.ultimo_codigo = ""
+
+if "resultado_api" not in st.session_state:
+
+    st.session_state.resultado_api = None
 
 # =========================================
 # TÍTULO
@@ -48,13 +53,32 @@ st.write(
 
 scanner_html = """
 
-<div id="reader" style="width:300px"></div>
+<div id="reader" style="width:100%"></div>
 
 <script src="https://unpkg.com/html5-qrcode"></script>
 
 <script>
 
+let ultimoCodigo = "";
+
+function beep() {
+
+    const audio = new Audio(
+        "https://actions.google.com/sounds/v1/alarms/beep_short.ogg"
+    );
+
+    audio.play();
+}
+
 function onScanSuccess(decodedText, decodedResult) {
+
+    if(decodedText === ultimoCodigo){
+        return;
+    }
+
+    ultimoCodigo = decodedText;
+
+    beep();
 
     const streamlitDoc = window.parent.document;
 
@@ -64,8 +88,17 @@ function onScanSuccess(decodedText, decodedResult) {
 
         input.value = decodedText;
 
-        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(
+            new Event('input', { bubbles: true })
+        );
 
+        input.dispatchEvent(
+            new KeyboardEvent('keydown', {
+                bubbles: true,
+                cancelable: true,
+                keyCode: 13
+            })
+        );
     }
 }
 
@@ -85,7 +118,7 @@ html5QrcodeScanner.render(onScanSuccess);
 
 st.components.v1.html(
     scanner_html,
-    height=600
+    height=700
 )
 
 # =========================================
@@ -97,91 +130,107 @@ codigo_barras = st.text_input(
 ).strip()
 
 # =========================================
-# MOSTRAR CÓDIGO
+# BÚSQUEDA AUTOMÁTICA
 # =========================================
 
-if codigo_barras:
+if (
+    codigo_barras
+    and codigo_barras != st.session_state.ultimo_codigo
+):
 
-    st.success(f"Código detectado: {codigo_barras}")
+    st.session_state.ultimo_codigo = codigo_barras
 
-# =========================================
-# BUSCAR
-# =========================================
-
-if st.button("Buscar producto"):
-
-    if codigo_barras:
+    with st.spinner("Buscando producto..."):
 
         resultado = buscar_producto(codigo_barras)
 
+        time.sleep(0.5)
+
+        st.session_state.resultado_api = resultado
+
+# =========================================
+# MOSTRAR RESULTADO
+# =========================================
+
+resultado = st.session_state.resultado_api
+
+if resultado:
+
+    if resultado["encontrado"]:
+
+        st.success(
+            f"Código detectado: {codigo_barras}"
+        )
+
+        nombres = resultado["nombres"]
+
+        if not nombres:
+
+            nombres = ["Producto sin nombre"]
+
+        nombre_seleccionado = st.selectbox(
+
+            "Elegí el nombre correcto",
+
+            nombres
+
+        )
+
+        nombre_editado = st.text_input(
+
+            "O editalo manualmente",
+
+            value=nombre_seleccionado
+
+        )
+
+        marca = st.text_input(
+
+            "Marca",
+
+            value=resultado["marca"]
+
+        )
+
+        categoria = st.text_input(
+
+            "Categoría",
+
+            value=resultado["categoria"]
+
+        )
+
         # =========================================
-        # SI ENCUENTRA
+        # GUARDAR
         # =========================================
 
-        if resultado["encontrado"]:
+        if st.button("Guardar producto"):
 
-            st.success("Producto encontrado")
+            insertar_producto(
 
-            nombres = resultado["nombres"]
-
-            if not nombres:
-
-                nombres = ["Producto sin nombre"]
-
-            nombre_seleccionado = st.selectbox(
-
-                "Elegí el nombre correcto",
-
-                nombres
+                codigo_barras,
+                nombre_editado,
+                marca,
+                categoria
 
             )
 
-            nombre_editado = st.text_input(
-
-                "O editalo manualmente",
-
-                value=nombre_seleccionado
-
-            )
-
-            marca = st.text_input(
-
-                "Marca",
-
-                value=resultado["marca"]
-
-            )
-
-            categoria = st.text_input(
-
-                "Categoría",
-
-                value=resultado["categoria"]
-
-            )
+            st.success("Producto guardado")
 
             # =========================================
-            # GUARDAR
+            # LIMPIAR
             # =========================================
 
-            if st.button("Guardar producto"):
+            st.session_state.resultado_api = None
+            st.session_state.ultimo_codigo = ""
 
-                insertar_producto(
+            st.rerun()
 
-                    codigo_barras,
-                    nombre_editado,
-                    marca,
-                    categoria
+    else:
 
-                )
-
-                st.success("Producto guardado")
-
-        else:
-
-            st.error(
-                "No se encontró el producto"
-            )
+        st.error(
+            "No se encontró el producto"
+        )
 
 # =========================================
 # MOSTRAR CATÁLOGO
