@@ -25,6 +25,13 @@ st.set_page_config(
 crear_tabla()
 
 # =========================================
+# SESSION STATE
+# =========================================
+
+if "codigo_barras" not in st.session_state:
+    st.session_state.codigo_barras = ""
+
+# =========================================
 # TITLE
 # =========================================
 
@@ -69,22 +76,43 @@ function onScanSuccess(decodedText) {
 
     const streamlitDoc = window.parent.document;
 
-    const input = streamlitDoc.querySelector(
-        'input[type="text"]'
+    const inputs = streamlitDoc.querySelectorAll(
+        'input'
     );
 
-    if(input){
+    console.log(
+        "Inputs encontrados:",
+        inputs.length
+    );
+
+    if(inputs.length > 0){
+
+        const input = inputs[0];
 
         input.focus();
 
         input.value = decodedText;
 
         input.dispatchEvent(
-            new Event('input', { bubbles: true })
+            new Event('input', {
+                bubbles: true
+            })
         );
 
         input.dispatchEvent(
-            new Event('change', { bubbles: true })
+            new Event('change', {
+                bubbles: true
+            })
+        );
+
+        input.dispatchEvent(
+            new KeyboardEvent(
+                'keydown',
+                {
+                    bubbles: true,
+                    key: 'Enter'
+                }
+            )
         );
     }
 }
@@ -113,7 +141,8 @@ st.components.v1.html(
 # =========================================
 
 codigo_barras = st.text_input(
-    "Código de barras"
+    "Código de barras",
+    key="codigo_barras"
 )
 
 codigo_barras = (
@@ -129,6 +158,10 @@ codigo_barras = (
 # =========================================
 
 st.write("Código:", repr(codigo_barras))
+st.write(
+    "Session State:",
+    st.session_state.codigo_barras
+)
 
 # =========================================
 # BUSCAR AUTOMÁTICAMENTE
@@ -137,6 +170,10 @@ st.write("Código:", repr(codigo_barras))
 resultado = None
 
 if codigo_barras:
+
+    st.success(
+        f"Código recibido: {codigo_barras}"
+    )
 
     resultado = buscar_producto(
         codigo_barras
@@ -152,7 +189,9 @@ if resultado:
 
     if resultado.get("encontrado"):
 
-        st.success("Producto encontrado")
+        st.success(
+            "Producto encontrado"
+        )
 
         nombres = resultado.get(
             "nombres",
@@ -166,61 +205,51 @@ if resultado:
             ]
 
         nombre_seleccionado = st.selectbox(
-
             "Elegí el nombre correcto",
-
             nombres
-
         )
 
         nombre_editado = st.text_input(
-
             "Editar nombre",
-
             value=nombre_seleccionado
-
         )
 
         marca = st.text_input(
-
             "Marca",
-
             value=resultado.get(
                 "marca",
                 ""
             )
-
         )
 
         categoria = st.text_input(
-
             "Categoría",
-
             value=resultado.get(
                 "categoria",
                 ""
             )
-
         )
 
-        # =========================================
-        # GUARDAR
-        # =========================================
-
-        if st.button("Guardar producto"):
+        if st.button(
+            "Guardar producto"
+        ):
 
             insertar_producto(
-
                 codigo_barras,
                 nombre_editado,
                 marca,
                 categoria
-
             )
 
             st.success(
                 "Producto guardado"
             )
+
+    else:
+
+        st.error(
+            "No se encontró el producto"
+        )
 
 # =========================================
 # TABLA
@@ -237,9 +266,7 @@ productos = obtener_productos()
 if productos:
 
     df = pd.DataFrame(
-
         productos,
-
         columns=[
             "codigo_barras",
             "nombre",
