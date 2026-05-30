@@ -8,6 +8,12 @@ from database import (
     insertar_producto,
     obtener_productos
 )
+from PIL import Image
+
+try:
+    from pyzbar.pyzbar import decode as zbar_decode
+except Exception:
+    zbar_decode = None
 
 # =========================================
 # CONFIG
@@ -45,96 +51,50 @@ st.write(
 # SCANNER
 # =========================================
 
-scanner_html = """
+# Nuevo scanner nativo usando la cámara de Streamlit
 
-<div id="reader" style="width:100%"></div>
+def _decode_barcodes_from_pil(image_pil):
+    if zbar_decode is None:
+        return []
 
-<script src="https://unpkg.com/html5-qrcode"></script>
+    try:
+        results = zbar_decode(image_pil)
+    except Exception:
+        return []
 
-<script>
+    codes = []
+    for r in results:
+        try:
+            codes.append(r.data.decode('utf-8'))
+        except Exception:
+            pass
+    return codes
 
-let ultimoCodigo = "";
+st.subheader("Escáner (cámara)")
 
-function beep() {
+if zbar_decode is None:
+    st.warning(
+        "La librería `pyzbar` no está disponible. Instala las dependencias: `pip install -r requirements.txt` y, si hace falta, la librería nativa `zbar`."
+    )
 
-    const audio = new Audio(
-        "https://actions.google.com/sounds/v1/alarms/beep_short.ogg"
-    );
+st.write("Tomá una foto del código de barras con la cámara.")
 
-    audio.play();
-}
+img_file = st.camera_input("Usar cámara")
 
-function onScanSuccess(decodedText) {
+if img_file is not None:
+    try:
+        image = Image.open(img_file)
+        codes = _decode_barcodes_from_pil(image)
 
-    if(decodedText === ultimoCodigo){
-        return;
-    }
+        if codes:
+            codigo_detectado = codes[0]
+            st.session_state.codigo_barras = codigo_detectado
+            st.success(f"Código detectado: {codigo_detectado}")
+        else:
+            st.info("No se detectó ningún código en la imagen.")
 
-    ultimoCodigo = decodedText;
-
-    beep();
-
-    const streamlitDoc = window.parent.document;
-
-    const inputs = streamlitDoc.querySelectorAll(
-        'input'
-    );
-
-    console.log(
-        "Inputs encontrados:",
-        inputs.length
-    );
-
-    if(inputs.length > 0){
-
-        const input = inputs[0];
-
-        input.focus();
-
-        input.value = decodedText;
-
-        input.dispatchEvent(
-            new Event('input', {
-                bubbles: true
-            })
-        );
-
-        input.dispatchEvent(
-            new Event('change', {
-                bubbles: true
-            })
-        );
-
-        input.dispatchEvent(
-            new KeyboardEvent(
-                'keydown',
-                {
-                    bubbles: true,
-                    key: 'Enter'
-                }
-            )
-        );
-    }
-}
-
-const scanner = new Html5QrcodeScanner(
-    "reader",
-    {
-        fps: 10,
-        qrbox: 250
-    }
-);
-
-scanner.render(onScanSuccess);
-
-</script>
-
-"""
-
-st.components.v1.html(
-    scanner_html,
-    height=700
-)
+    except Exception as e:
+        st.error(f"Error decodificando la imagen: {e}")
 
 # =========================================
 # INPUT
@@ -233,7 +193,6 @@ if resultado:
         if st.button(
             "Guardar producto"
         ):
-
             insertar_producto(
                 codigo_barras,
                 nombre_editado,
@@ -244,6 +203,27 @@ if resultado:
             st.success(
                 "Producto guardado"
             )
+
+            # Limpiar para el siguiente escaneo
+            st.session_state.codigo_barras = ""
+
+            st.experimental_rerun()
+
+        if st.button("Guardar y siguiente"):
+
+            insertar_producto(
+                codigo_barras,
+                nombre_editado,
+                marca,
+                categoria
+            )
+
+            st.success("Producto guardado, listo para el siguiente")
+
+            # Limpiar el campo para escanear el próximo producto
+            st.session_state.codigo_barras = ""
+
+            st.experimental_rerun()
 
     else:
 
