@@ -8,22 +8,6 @@ from database import (
     insertar_producto,
     obtener_productos
 )
-from PIL import Image
-
-try:
-    from pyzbar.pyzbar import decode as zbar_decode
-except Exception:
-    zbar_decode = None
-
-import queue
-import cv2
-import numpy as np
-import av
-
-from streamlit_webrtc import webrtc_streamer, VideoProcessorBase
-
-# Cola para pasar códigos detectados desde el processor al hilo principal
-barcode_queue = queue.Queue()
 
 # =========================================
 # CONFIG
@@ -61,87 +45,96 @@ st.write(
 # SCANNER
 # =========================================
 
-# Nuevo scanner nativo usando la cámara de Streamlit
+scanner_html = """
 
-def _decode_barcodes_from_pil(image_pil):
-    if zbar_decode is None:
-        return []
+<div id="reader" style="width:100%"></div>
 
-    try:
-        results = zbar_decode(image_pil)
-    except Exception:
-        return []
+<script src="https://unpkg.com/html5-qrcode"></script>
 
-    codes = []
-    for r in results:
-        try:
-            codes.append(r.data.decode('utf-8'))
-        except Exception:
-            pass
-    return codes
+<script>
 
+let ultimoCodigo = "";
 
-st.subheader("Escáner en vivo (cámara)")
+function beep() {
 
-if zbar_decode is None:
-    st.warning(
-        "La librería `pyzbar` no está disponible. Instala las dependencias: `pip install -r requirements.txt` y, si hace falta, la librería nativa `zbar`."
-    )
+    const audio = new Audio(
+        "https://actions.google.com/sounds/v1/alarms/beep_short.ogg"
+    );
 
+    audio.play();
+}
 
-class BarcodeProcessor(VideoProcessorBase):
-    def __init__(self):
-        self._last = None
+function onScanSuccess(decodedText) {
 
-    def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
-        img = frame.to_ndarray(format="bgr24")
+    if(decodedText === ultimoCodigo){
+        return;
+    }
 
-        if zbar_decode is not None:
-            try:
-                decoded = zbar_decode(img)
-            except Exception:
-                decoded = []
+    ultimoCodigo = decodedText;
 
-            for d in decoded:
-                try:
-                    code = d.data.decode("utf-8")
-                except Exception:
-                    code = None
+    beep();
 
-                if code and code != self._last:
-                    self._last = code
-                    try:
-                        barcode_queue.put_nowait(code)
-                    except Exception:
-                        pass
+    const streamlitDoc = window.parent.document;
 
-        # opcional: dibujar rectángulos (si pyzbar devolviera polígonos)
-        return av.VideoFrame.from_ndarray(img, format="bgr24")
+    const inputs = streamlitDoc.querySelectorAll(
+        'input'
+    );
 
+    console.log(
+        "Inputs encontrados:",
+        inputs.length
+    );
 
-webrtc_ctx = webrtc_streamer(
-    key="barcode-webrtc",
-    video_processor_factory=BarcodeProcessor,
-    media_stream_constraints={"video": True, "audio": False},
+    if(inputs.length > 0){
+
+        const input = inputs[0];
+
+        input.focus();
+
+        input.value = decodedText;
+
+        input.dispatchEvent(
+            new Event('input', {
+                bubbles: true
+            })
+        );
+
+        input.dispatchEvent(
+            new Event('change', {
+                bubbles: true
+            })
+        );
+
+        input.dispatchEvent(
+            new KeyboardEvent(
+                'keydown',
+                {
+                    bubbles: true,
+                    key: 'Enter'
+                }
+            )
+        );
+    }
+}
+
+const scanner = new Html5QrcodeScanner(
+    "reader",
+    {
+        fps: 10,
+        qrbox: 250
+    }
+);
+
+scanner.render(onScanSuccess);
+
+</script>
+
+"""
+
+st.components.v1.html(
+    scanner_html,
+    height=700
 )
-
-# Leer la cola y actualizar estado principal
-try:
-    codigo_detectado = barcode_queue.get_nowait()
-except Exception:
-    codigo_detectado = None
-
-if codigo_detectado:
-    st.session_state.codigo_barras = codigo_detectado
-    st.success(f"Código detectado: {codigo_detectado}")
-    # opcional: detener el stream para evitar detectarlo múltiples veces
-    if webrtc_ctx and webrtc_ctx.state.playing:
-        try:
-            webrtc_ctx.stop()
-        except Exception:
-            pass
-    # forzar rerun para que el input actualice y se realice la búsqueda
-    st.experimental_rerun()
 
 # =========================================
 # INPUT
@@ -240,6 +233,7 @@ if resultado:
         if st.button(
             "Guardar producto"
         ):
+
             insertar_producto(
                 codigo_barras,
                 nombre_editado,
@@ -250,27 +244,6 @@ if resultado:
             st.success(
                 "Producto guardado"
             )
-
-            # Limpiar para el siguiente escaneo
-            st.session_state.codigo_barras = ""
-
-            st.experimental_rerun()
-
-        if st.button("Guardar y siguiente"):
-
-            insertar_producto(
-                codigo_barras,
-                nombre_editado,
-                marca,
-                categoria
-            )
-
-            st.success("Producto guardado, listo para el siguiente")
-
-            # Limpiar el campo para escanear el próximo producto
-            st.session_state.codigo_barras = ""
-
-            st.experimental_rerun()
 
     else:
 
