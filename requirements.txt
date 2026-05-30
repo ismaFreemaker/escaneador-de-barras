@@ -4,3 +4,7 @@ requests
 streamlit-javascript
 Pillow
 pyzbar
+streamlit-webrtc
+opencv-python
+numpy
+av
